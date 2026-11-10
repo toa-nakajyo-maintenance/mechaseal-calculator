@@ -1,0 +1,359 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}img{max-width:100%}</style>
+<title>メカシールセット寸法計算</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: 現場で片手操作する一列のツール。上にモード切替、入力カード、下に大きな結果パネル */
+:root{
+  --bg:#eef1f3; --panel:#ffffff; --fg:#1d2a33; --muted:#5d6b75; --line:#cdd5db;
+  --accent:#1f5f8b; --accent-ink:#ffffff; --result:#123b57; --result-ink:#f3f8fb;
+  --warn:#a3470f; --warn-bg:#fbeee4; --chip:#e3ebf1;
+  --f-body:"BIZ UDPGothic","Hiragino Sans","Yu Gothic",sans-serif;
+  --f-num:"BIZ UDGothic","Hiragino Sans","Yu Gothic",monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141b20; --panel:#1d262d; --fg:#e4ebef; --muted:#9aa8b2; --line:#33414b;
+  --accent:#5fa4d3; --accent-ink:#0d1a22; --result:#0c2433; --result-ink:#e8f3fa;
+  --warn:#f0a06b; --warn-bg:#3a2518; --chip:#26333c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141b20; --panel:#1d262d; --fg:#e4ebef; --muted:#9aa8b2; --line:#33414b;
+  --accent:#5fa4d3; --accent-ink:#0d1a22; --result:#0c2433; --result-ink:#e8f3fa;
+  --warn:#f0a06b; --warn-bg:#3a2518; --chip:#26333c; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.6}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-direction:column;gap:2px}
+.doc{font-size:12px;letter-spacing:.08em;color:var(--muted)}
+h1{font-size:22px;margin:0;text-wrap:balance}
+.tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;background:var(--chip);padding:5px;border-radius:12px}
+.tabs button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:9px;padding:10px 6px;
+  background:transparent;color:var(--muted);cursor:pointer;line-height:1.35}
+.tabs button[aria-selected="true"]{background:var(--panel);color:var(--fg);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.tabs button:focus-visible,input:focus-visible,.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.card h2{font-size:15px;margin:0;color:var(--muted);font-weight:700}
+.grp{display:flex;flex-direction:column;gap:10px}
+.grp + .grp{border-top:1px dashed var(--line);padding-top:14px}
+.grp-t{font-size:13px;font-weight:700;color:var(--accent)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:13px;color:var(--muted);line-height:1.4}
+.field label b{color:var(--fg);font-family:var(--f-num)}
+.inp{display:flex;align-items:center;border:1.5px solid var(--line);border-radius:9px;background:var(--bg);overflow:hidden}
+.inp:focus-within{border-color:var(--accent)}
+.inp input{flex:1;min-width:0;border:0;background:transparent;color:var(--fg);font-family:var(--f-num);
+  font-size:22px;padding:8px 10px;font-variant-numeric:tabular-nums;outline:none}
+.inp span{padding-right:10px;color:var(--muted);font-size:14px}
+.result{background:var(--result);color:var(--result-ink);border-radius:14px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:6px}
+.r-label{font-size:13px;opacity:.85}
+.r-val{font-family:var(--f-num);font-size:48px;line-height:1.1;font-variant-numeric:tabular-nums}
+.r-val small{font-size:20px;margin-left:4px}
+.r-calc{font-family:var(--f-num);font-size:14px;opacity:.9;word-break:break-all}
+.r-sub{font-size:13px;opacity:.85;border-top:1px solid rgba(255,255,255,.2);padding-top:8px;margin-top:4px}
+.warn{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:14px}
+.notes{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:4px;padding-left:2px}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-size:14px;border:1.5px solid var(--line);background:var(--panel);color:var(--fg);border-radius:9px;padding:8px 14px;cursor:pointer}
+.tag{display:inline-block;font-size:11px;background:var(--chip);color:var(--muted);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle}
+[hidden]{display:none!important}
+.fig{background:var(--bg);border-radius:10px;padding:6px 4px}
+.fig svg{width:100%;height:auto;display:block}
+.fig-cap{font-size:12px;color:var(--muted);text-align:center;margin-top:2px}
+svg .p{fill:var(--panel);stroke:var(--fg);stroke-width:1.5}
+svg .cl{stroke:var(--muted);stroke-dasharray:8 3 2 3;stroke-width:1;fill:none}
+svg .scr{stroke:var(--warn);stroke-width:1.2}
+svg .lbl{fill:var(--fg);font-size:12px;font-family:var(--f-body)}
+svg .lead{stroke:var(--fg);stroke-width:1;fill:none}
+svg .d line{stroke:var(--muted);stroke-width:1}
+svg .d polygon{fill:var(--muted)}
+svg .d text{fill:var(--muted);font-size:12px;font-family:var(--f-body)}
+svg .d.res line{stroke:var(--accent);stroke-dasharray:4 2}
+svg .d.res polygon,svg .d.res text{fill:var(--accent);font-weight:700}
+svg .d.hl line{stroke:var(--accent);stroke-width:2.2;stroke-dasharray:none}
+svg .d.hl polygon,svg .d.hl text{fill:var(--accent);font-weight:700}
+@media (prefers-reduced-motion:no-preference){svg .d line,svg .d text{transition:all .15s}}
+.share{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.share img{width:132px;height:132px;background:#fff;padding:6px;border-radius:8px;flex:none}
+.share-t{display:flex;flex-direction:column;gap:6px;min-width:0;flex:1 1 180px}
+.share-t h2{font-size:15px;margin:0}
+.share-t p{margin:0;font-size:13px;color:var(--muted)}
+.url{font-family:var(--f-num);font-size:11px;color:var(--muted);word-break:break-all;user-select:all}
+.proc details{border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.proc summary{cursor:pointer;padding:12px 14px;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:8px}
+.proc summary::-webkit-details-marker{display:none}
+.proc summary::after{content:"＋";color:var(--muted)}
+.proc details[open] summary::after{content:"－"}
+.proc .in{padding:0 14px 14px;display:flex;flex-direction:column;gap:10px}
+.proc ol{margin:0;padding-left:1.6em;display:flex;flex-direction:column;gap:4px}
+.proc ol.circ{list-style:none;padding-left:0}
+.proc .tip{font-size:13px;color:var(--muted)}
+.proc .key{background:var(--chip);border-radius:8px;padding:8px 10px;font-size:14px}
+.go{align-self:flex-start}
+.caution{background:var(--warn-bg);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:2px}
+</style>
+
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#123b57">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="メカセット">
+</head><body>
+<div class="wrap">
+  <header>
+    <span class="doc">整備基準書 共−005 準拠</span>
+    <h1>メカシール セット寸法計算</h1>
+  </header>
+
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabA" aria-selected="true" data-mode="A">中古品<br>と交換</button>
+    <button role="tab" id="tabB" aria-selected="false" data-mode="B">寸法不明<br>（図面なし）</button>
+    <button role="tab" id="tabC" aria-selected="false" data-mode="C">作業手順<br>（基準書）</button>
+  </div>
+
+  <!-- モードA -->
+  <section id="modeA" class="card">
+    <h2>入力 <span class="tag" id="exA">共−005の例を表示中</span></h2>
+    <div class="fig"><div id="figA"></div><div class="fig-cap">入力欄をタップすると、図の該当寸法が青く光ります</div></div>
+    <div class="grp">
+      <div class="field">
+        <label for="a_set">スリーブセット寸法（取外し時の実測）</label>
+        <div class="inp"><input id="a_set" inputmode="decimal" value="40"><span>mm</span></div>
+      </div>
+    </div>
+    <div class="grp">
+      <div class="grp-t">回転環 全長（厚み）</div>
+      <div class="row2">
+        <div class="field"><label for="a_ro">旧</label><div class="inp"><input id="a_ro" inputmode="decimal" value="35.0"><span>mm</span></div></div>
+        <div class="field"><label for="a_rn">新</label><div class="inp"><input id="a_rn" inputmode="decimal" value="34.0"><span>mm</span></div></div>
+      </div>
+    </div>
+    <div class="grp">
+      <div class="grp-t">固定環 全長（厚み）</div>
+      <div class="row2">
+        <div class="field"><label for="a_fo">旧</label><div class="inp"><input id="a_fo" inputmode="decimal" value="29.0"><span>mm</span></div></div>
+        <div class="field"><label for="a_fn">新</label><div class="inp"><input id="a_fn" inputmode="decimal" value="32.0"><span>mm</span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- モードB -->
+  <section id="modeB" class="card" hidden>
+    <h2>入力 <span class="tag" id="exB">共−005の例を表示中</span></h2>
+    <div class="fig"><div id="figB"></div><div class="fig-cap">点線の青い寸法（⑥−⑦）が計算結果です</div></div>
+    <div class="grp">
+      <div class="field"><label for="b6"><b>⑥</b> ケガキ線（0点）〜回転環端の寸法</label><div class="inp"><input id="b6" inputmode="decimal" value="50"><span>mm</span></div></div>
+      <div class="field"><label for="b7"><b>⑦</b> 回転環一式 全体長さ</label><div class="inp"><input id="b7" inputmode="decimal" value="35"><span>mm</span></div></div>
+      <div class="field"><label for="b8"><b>⑧</b> 固定環ケースフランジ面〜摺動面間</label><div class="inp"><input id="b8" inputmode="decimal" value="5"><span>mm</span></div></div>
+    </div>
+    <div class="grp">
+      <div class="field"><label for="bp">メーカー規定 押し代</label><div class="inp"><input id="bp" inputmode="decimal" value="3"><span>mm</span></div></div>
+    </div>
+  </section>
+
+  <!-- モードC：作業手順 -->
+  <section id="modeC" class="card proc" hidden>
+    <h2>整備基準書 共−005　メカニカルシール交換セット要領</h2>
+
+    <details open>
+      <summary>1. 新品と交換する場合</summary>
+      <div class="in">
+        <ol>
+          <li>シャフトよりスリーブを取外す（回転環一体で）</li>
+          <li>固定環を取外す</li>
+          <li>現セット寸法を実測し、新品を同じ寸法で組み込む</li>
+        </ol>
+        <div class="key">使用工具：ノギス、六角レンチ<br><b>※メーカー基準値を参照のこと</b></div>
+      </div>
+    </details>
+
+    <details>
+      <summary>2. 中古摺り合わせ品（ラッピング品）と交換する場合</summary>
+      <div class="in">
+        <ol>
+          <li>上記「1. 新品と交換する場合」の①②と同じ</li>
+          <li>旧回転環、固定環の全長（厚み）を測定</li>
+          <li>新回転環、固定環の全長（厚み）を測定</li>
+          <li>新旧の厚みの差を考慮して、スリーブにセットする</li>
+        </ol>
+        <div class="key">セット寸法 ＝ 取外し時寸法 −（固定環の差 ＋ 回転環の差）<br>例：40 −（＋3.0 −1.0）＝ <b>38.0mm</b></div>
+        <span class="tip">そのままセットすると、固定環と回転環を合わせて2mm長くなり、押し代が3mm→5mmで押し過ぎになる。</span>
+        <button class="btn go" data-go="A">この計算をする →</button>
+      </div>
+    </details>
+
+    <details>
+      <summary>3. セット寸法が不明な場合（図面なし）</summary>
+      <div class="in">
+        <ol class="circ">
+          <li>① ポンプ本体にケーシングを仮組する</li>
+          <li>② ポンプ本体シャフトにスリーブを挿入する</li>
+          <li>③ インペラーを仮組する</li>
+          <li>④ スリーブにマジック、チョーク等を塗り、ケガキ線（0点位置）がはっきり分かるようにする</li>
+          <li>⑤ スタッフィングBOXフランジに薄刃（カッター等）を当て、先端をスリーブに接地させてシャフトを回転させる（線が付いた所が0点）</li>
+          <li>⑥ 仮組みを分解してスリーブを取り出し、ケガキ線からの寸法を計測する</li>
+          <li>⑦ 回転環一式の全体長さを計測する</li>
+          <li>⑧ 固定環ケースフランジ面から摺動面間を測定する</li>
+          <li>⑨ メーカー規定押し代になるよう計算し、スリーブに回転環をセットする</li>
+        </ol>
+        <div class="key">回転環のセット寸法 ＝（⑥−⑦）−（⑧ − 押し代）<br>例：（50−35）−（5−3）＝ <b>13.0mm</b></div>
+        <button class="btn go" data-go="B">この計算をする →</button>
+      </div>
+    </details>
+
+    <div class="caution">
+      <b>注意</b>
+      <span>1. メカシールセット寸法は、必ず取扱説明書（有るもの）を参照のこと。</span>
+      <span>2. ポンプ組立後、洩れテストは必ず実施のこと。</span>
+    </div>
+  </section>
+
+  <section class="result" aria-live="polite">
+    <span class="r-label" id="rLabel">新しいスリーブセット寸法</span>
+    <span class="r-val" id="rVal">38.0<small>mm</small></span>
+    <span class="r-calc" id="rCalc"></span>
+    <span class="r-sub" id="rSub"></span>
+  </section>
+  <div class="warn" id="warn" hidden></div>
+
+  <div class="actions">
+    <button class="btn" id="clear">入力をクリア</button>
+    <button class="btn" id="example">例を入れる</button>
+  </div>
+
+  <section class="share">
+    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAPYAAAD2AQAAAADNaUdlAAACiUlEQVR4Xu1ZUYqtMAxNpsJ81h3cpdSdXWZndSl3B+3nQCWPc1ovPHio8GAkMMUPtahpenJyEtXkaGwfh9Miv/PH48w/YgUvCCVZEbMs0QLuJL42tbPn754XK8nMguVQ0jgsB9wxKz7sF0nBcos5WIbXo/VdCA7s3/e/PqUumz4lWqsaXsuA5d34uP79CVEgVlaJeZv3qLr+/L/HTzyPsJXVStoeWWf5fC0I4WjNBz+uqiqS4P/XEl7PTj6bqs4e+D2aGV0dc4tfb+TgruUf2f+jcYY/8mcBBYnAZpCPpBZBRD74E+BPe+ZKDefWBCctmof8hfgNJQFI4HxcNoIKCznbv7vnYW0/ev7CeQF+mmBFDuwH56dBmDAbsgc7YgyEu/179v1O/qmJEPAwuzufcs6D/2GwkTxxQgkE5ECUurC/CGA/IheJAAsh/zixn/p5CAbkApAPLomrM/zdPY/gFYIfUYz6hVzKSyf88/Y/jB/gYUR4wQ9lMwiHLATliUKMWsIDfgj1XnCNQN7lhBP+GSmsC6EC/mFGoBC6Oz7Pvk/jkWpJm5HigXq2+eB/rG/qyllWqcskMiGL2dRbKGfrv3ue4gdqh8pndB6o/xkULvADwUPwoGGy6//eF3JgP3Um9f9QEb0LRC3kw35qHmpOAmlkXmYBB/5nn40tOKpQ6v9RUbvAfx+9bOycyUBwgv8Pqaqqk4jUBZ6vOtWlkVS98GfvPw/BP4ovJGIn+Cf4Wb902YCF8KeAB/zv+TPm7wcablP8+iyyPSg+HeTfv/K/zihkvmcJZR1bcLc+uPJ9tiDQdpaqUhX+n6VRC116/n/6l1fsOxzv/18suPKIAoofD/Wv/v4/vRU/fwCpxRIor82B5wAAAABJRU5ErkJggg==" alt="このアプリのQRコード">
+    <div class="share-t">
+      <h2>このアプリを共有</h2>
+      <p>スマホのカメラで読み取ると開けます。ホーム画面に追加すると、圏外でも使えます。</p>
+      <span class="url" id="appUrl">https://toa-nakajyo-maintenance.github.io/mechaseal-calculator/</span>
+      <div class="actions"><button class="btn" id="copyUrl">URLをコピー</button></div>
+    </div>
+  </section>
+
+  <div class="notes">
+    <span>・メカシールセット寸法は必ず取扱説明書（有るもの）を参照のこと。</span>
+    <span>・ポンプ組立後、洩れテストは必ず実施のこと。</span>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const EX={A:{a_set:"40",a_ro:"35.0",a_rn:"34.0",a_fo:"29.0",a_fn:"32.0"},B:{b6:"50",b7:"35",b8:"5",bp:"3"}};
+let mode="A";
+const num=id=>{const v=$(id).value.trim().replace(/[０-９．－]/g,c=>({"．":".","－":"-"}[c]||String.fromCharCode(c.charCodeAt(0)-0xFEE0)));
+  return v===""?NaN:Number(v)};
+const fmt=x=>{const r=Math.round(x*100)/100;return Number.isInteger(r*10)?r.toFixed(1):r.toFixed(2)};
+const sg=x=>(x>=0?"＋":"－")+fmt(Math.abs(x));
+function isExample(m){return Object.entries(EX[m]).every(([k,v])=>$(k).value===v)}
+
+function calc(){
+  const warn=$("warn"); warn.hidden=true; if(mode==="C") return;
+  let val=NaN, calcTxt="", sub="", msg="";
+  if(mode==="A"){
+    const S=num("a_set"),ro=num("a_ro"),rn=num("a_rn"),fo=num("a_fo"),fn=num("a_fn");
+    $("rLabel").textContent="新しいスリーブセット寸法";
+    if([S,ro,rn,fo,fn].some(isNaN)){ msg="すべての欄に数値を入れてください。"; }
+    else{
+      const dR=rn-ro, dF=fn-fo, d=dR+dF;
+      val=S-d;
+      calcTxt=`${fmt(S)} − (${sg(dF)} ${sg(dR)}) = ${fmt(val)} mm`;
+      sub=`回転環 ${sg(dR)} mm／固定環 ${sg(dF)} mm → そのままセットすると押し代が ${sg(d)} mm 変わる`;
+    }
+    $("exA").hidden=!isExample("A");
+  }else{
+    const s6=num("b6"),s7=num("b7"),s8=num("b8"),p=num("bp");
+    $("rLabel").textContent="スリーブへの回転環セット寸法（⑥−⑦）";
+    if([s6,s7,s8,p].some(isNaN)){ msg="すべての欄に数値を入れてください。"; }
+    else{
+      const base=s6-s7; val=base-(s8-p);
+      calcTxt=`(${fmt(s6)} − ${fmt(s7)}) − (${fmt(s8)} − ${fmt(p)}) = ${fmt(val)} mm`;
+      sub=`⑥−⑦ = ${fmt(base)} mm から、⑧−押し代 = ${fmt(s8-p)} mm を引く`;
+      if(val<0) msg="結果がマイナスです。⑥〜⑧の測定値を確認してください。";
+    }
+    $("exB").hidden=!isExample("B");
+  }
+  $("rVal").innerHTML=isNaN(val)?"—<small>mm</small>":`${fmt(val)}<small>mm</small>`;
+  $("rCalc").textContent=calcTxt; $("rSub").textContent=sub; $("rSub").hidden=!sub;
+  if(msg){warn.textContent=msg;warn.hidden=false}
+}
+
+function setMode(m){
+  mode=m;
+  document.querySelectorAll(".tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.mode===m));
+  $("modeA").hidden=m!=="A"; $("modeB").hidden=m!=="B"; $("modeC").hidden=m!=="C";
+  document.querySelector(".result").hidden=m==="C"; document.querySelector(".actions").hidden=m==="C"; document.querySelector(".notes").hidden=m==="C";
+  try{localStorage.setItem("mode",m)}catch(e){}
+  calc();
+}
+document.querySelectorAll(".tabs button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+document.querySelectorAll("input").forEach(i=>{i.addEventListener("input",calc);i.addEventListener("focus",()=>i.select())});
+$("clear").addEventListener("click",()=>{Object.keys(EX[mode]).forEach(k=>$(k).value="");$(Object.keys(EX[mode])[0]).focus();calc()});
+$("example").addEventListener("click",()=>{Object.entries(EX[mode]).forEach(([k,v])=>$(k).value=v);calc()});
+
+// ---- イラスト ----
+const r=(x,y,w,h,c="p")=>`<rect class="${c}" x="${x}" y="${y}" width="${w}" height="${h}"/>`;
+const ln=(x1,y1,x2,y2,c="lead")=>`<line class="${c}" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+const tx=(x,y,t,a="middle",c="lbl")=>`<text class="${c}" x="${x}" y="${y}" text-anchor="${a}">${t}</text>`;
+const bolt=(x,y)=>`<circle class="p" cx="${x}" cy="${y}" r="6"/><polygon class="p" style="stroke-width:1" points="${[0,1,2,3,4,5].map(i=>`${x+3.6*Math.cos(i*Math.PI/3)},${y+3.6*Math.sin(i*Math.PI/3)}`).join(" ")}"/>`;
+const key=(x,y)=>`<rect class="p" style="stroke-width:1" x="${x}" y="${y-4}" width="16" height="8" rx="4"/>`;
+const ah=(x,y,dir)=>{const s=7,w=3.5;return dir==="l"?`<polygon points="${x},${y} ${x+s},${y-w} ${x+s},${y+w}"/>`:dir==="r"?`<polygon points="${x},${y} ${x-s},${y-w} ${x-s},${y+w}"/>`:dir==="u"?`<polygon points="${x},${y} ${x-w},${y+s} ${x+w},${y+s}"/>`:`<polygon points="${x},${y} ${x-w},${y-s} ${x+w},${y-s}"/>`};
+function dimH(id,x1,x2,y,lab,e1,e2,cls="",out=false,tx2){
+  let g=`<g class="d ${cls}" data-d="${id}">`+ln(x1,e1,x1,y+5,"")+ln(x2,e2,x2,y+5,"");
+  if(out){g+=ln(x1-22,y,x1,y,"")+ln(x2,y,x2+22,y,"")+ah(x1,y,"r")+ah(x2,y,"l")}
+  else g+=ln(x1,y,x2,y,"")+ah(x1,y,"l")+ah(x2,y,"r");
+  return g+`<text x="${tx2??(x1+x2)/2}" y="${y-5}" text-anchor="middle">${lab}</text></g>`;
+}
+function dimV(id,x,y1,y2,lab,ex){
+  return `<g class="d" data-d="${id}">`+ln(ex,y1,x+5,y1,"")+ln(ex,y2,x+5,y2,"")+ln(x,y1,x,y2,"")+ah(x,y1,"u")+ah(x,y2,"d")
+   +`<text x="${x+8}" y="${(y1+y2)/2+4}" text-anchor="start">${lab}</text></g>`;
+}
+function sleeveAsm(ox,cy,setx,rx){
+  return ln(ox-10,cy,rx+40,cy,"cl")+r(ox,cy-12,rx+22-ox,24)+key(ox+8,cy)
+   +r(setx,cy-45,22,90)+bolt(setx+11,cy)+r(rx,cy-32,20,64)+ln(ox-10,cy,rx+40,cy,"cl");
+}
+// モードA
+$("figA").innerHTML=`<svg viewBox="0 0 360 300" role="img" aria-label="スリーブセット寸法と回転環・固定環の厚みの図">
+${sleeveAsm(30,70,170,240)}
+${tx(70,22,"セットリング")}${ln(110,22,168,32)}
+${tx(60,120,"スリーブ")}${ln(70,107,85,83)}
+${dimH("dSet",192,260,138,"セット寸法",116,103)}
+<g>${ln(70,170,70,280,"cl")}
+${r(30,172,80,26)}${r(36,198,68,8)}${r(32,206,76,5)}${r(36,211,68,8)}${r(30,219,80,40)}${bolt(70,239)}
+${dimV("dR",128,172,259,"厚み",110)}${tx(70,285,"回転環")}</g>
+<g>${ln(250,180,250,280,"cl")}
+${r(210,215,80,44)}${r(222,197,56,18)}${r(230,189,40,8)}
+${dimV("dF",308,189,259,"厚み",270)}${tx(250,285,"固定環")}</g>
+</svg>`;
+// モードB
+$("figB").innerHTML=`<svg viewBox="0 0 360 330" role="img" aria-label="ケガキ線から回転環端までの寸法⑥、回転環一式の長さ⑦、固定環の寸法⑧の図">
+${sleeveAsm(20,70,210,265)}
+${[0,1,2,3,4].map(i=>ln(86+i*3,58,90+i*3,82,"scr")).join("")}
+${tx(92,22,"ケガキ線（0点）")}${ln(92,26,92,56)}
+${dimH("d67",232,285,124,"⑥−⑦（結果）",117,104,"res",false,302)}
+${dimH("d6",92,285,150,"⑥",84,104)}
+<g>${ln(10,250,340,250,"cl")}
+${r(18,190,26,120)}${r(44,205,12,90)}${r(56,215,10,70)}
+${dimH("d8",44,66,322,"⑧",297,287,"",true,100)}
+${r(170,218,24,64)}${r(194,224,8,52)}${r(202,218,22,64)}${r(224,230,30,40)}${r(254,218,26,64)}${bolt(267,250)}
+${dimH("d7",170,280,312,"⑦",284,284)}
+${tx(42,184,"固定環ケース")}${tx(225,206,"回転環一式")}</g>
+</svg>`;
+const DMAP={a_set:"dSet",a_ro:"dR",a_rn:"dR",a_fo:"dF",a_fn:"dF",b6:"d6",b7:"d7",b8:"d8"};
+document.querySelectorAll("input").forEach(i=>{
+  i.addEventListener("focus",()=>{document.querySelectorAll(".d.hl").forEach(g=>g.classList.remove("hl"));
+    const d=DMAP[i.id]; if(d) document.querySelectorAll(`[data-d="${d}"]`).forEach(g=>g.classList.add("hl"))});
+  i.addEventListener("blur",()=>document.querySelectorAll(".d.hl").forEach(g=>g.classList.remove("hl")));
+});
+
+$("copyUrl").addEventListener("click",()=>{const t=$("appUrl").textContent,b=$("copyUrl");
+  const sel=()=>{const r=document.createRange();r.selectNodeContents($("appUrl"));const s=getSelection();s.removeAllRanges();s.addRange(r);b.textContent="選択しました。長押しでコピー"};
+  try{navigator.clipboard.writeText(t).then(()=>{b.textContent="コピーしました"},sel)}catch(e){sel()}
+  setTimeout(()=>b.textContent="URLをコピー",3000)});
+let start="A"; try{start=localStorage.getItem("mode")||"A"}catch(e){}
+document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>{setMode(b.dataset.go);scrollTo({top:0,behavior:"smooth"})}));
+setMode(["A","B","C"].includes(start)?start:"A");
+</script>
+<script>if("serviceWorker" in navigator){navigator.serviceWorker.register("sw.js").catch(()=>{})}</script>
+</body></html>
